@@ -71,10 +71,28 @@ const handleNoteSave = () => {
     title: noteTitle.value,
     text: noteText.value,
   };
-  saveNote(newNote).then(() => {
-    getAndRenderNotes();
-    renderActiveNote();
-  });
+
+  if (activeNote.id) {
+    // Update existing note in database
+    fetch(`/api/notes/${activeNote.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(newNote),
+    }).then(() => {
+      activeNote.title = newNote.title;
+      activeNote.text = newNote.text;
+      getAndRenderNotes();
+      renderActiveNote();
+    });
+  } else {
+    // Create new note and save to database
+    saveNote(newNote).then(() => {
+      getAndRenderNotes();
+      renderActiveNote();
+    });
+  }
 };
 
 // Delete the clicked note
@@ -126,13 +144,14 @@ const renderNoteList = async (notes) => {
   let noteListItems = [];
 
   // Returns HTML element with or without a delete button
-  const createLi = (text, delBtn = true) => {
+  const createLi = (text, delBtn = true, id) => {
     const liEl = document.createElement('li');
     liEl.classList.add('list-group-item');
 
     const spanEl = document.createElement('span');
     spanEl.classList.add('list-item-title');
     spanEl.innerText = text;
+    spanEl.dataset.id = id;
     spanEl.addEventListener('click', handleNoteView);
 
     liEl.append(spanEl);
@@ -159,9 +178,8 @@ const renderNoteList = async (notes) => {
   }
 
   jsonNotes.forEach((note) => {
-    const li = createLi(note.title);
+    const li = createLi(note.title, true, note.id);
     li.dataset.note = JSON.stringify(note);
-
     noteListItems.push(li);
   });
 
@@ -169,6 +187,14 @@ const renderNoteList = async (notes) => {
     noteListItems.forEach((note) => noteList[0].append(note));
   }
 };
+
+noteList[0].addEventListener('click', (e) => {
+  if (e.target.matches('.list-item-title')) {
+    const note = JSON.parse(e.target.parentElement.dataset.note);
+    activeNote = { id: note.id, title: note.title, text: note.text };
+    renderActiveNote();
+  }
+});
 
 // Gets notes from the db and renders them to the sidebar
 const getAndRenderNotes = () => getNotes().then(renderNoteList);
@@ -178,6 +204,14 @@ if (window.location.pathname === '/notes') {
   newNoteBtn.addEventListener('click', handleNewNoteView);
   noteTitle.addEventListener('keyup', handleRenderSaveBtn);
   noteText.addEventListener('keyup', handleRenderSaveBtn);
+
+  noteTitle.addEventListener('input', event => {
+    activeNote.title = event.target.value;
+  });
+
+  noteText.addEventListener('input', event => {
+    activeNote.text = event.target.value;
+  });
 }
 
 getAndRenderNotes();
